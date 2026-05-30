@@ -1,3 +1,173 @@
+# Freiheit Media Open WebUI Test Submission
+
+This fork customizes Open WebUI for a local internal LLM evaluation. It includes a visible branding update, a small custom UI element, Docker-based setup instructions, and a conceptual RAG safety answer for customer-isolated knowledge bases.
+
+## Submission Links
+
+- GitHub fork: TODO - replace with your fork URL after pushing this branch.
+- Short video: TODO - add your screen recording link.
+
+## Local Docker Setup
+
+Start Docker Desktop first. On Windows, confirm Docker is ready with:
+
+```powershell
+docker version
+docker ps
+```
+
+Build this fork so the UI changes are included:
+
+```powershell
+docker build -t freiheit-open-webui:local .
+```
+
+Run the local image:
+
+```powershell
+docker rm -f open-webui
+
+docker run -d `
+  -p 3000:8080 `
+  -e HF_HUB_OFFLINE=1 `
+  -v open-webui:/app/backend/data `
+  --name open-webui `
+  --restart always `
+  freiheit-open-webui:local
+```
+
+Open the app at [http://localhost:3000](http://localhost:3000).
+
+Useful commands:
+
+```powershell
+docker logs -f open-webui
+docker stop open-webui
+docker start open-webui
+```
+
+If Ollama is running on the Windows host, use this variant:
+
+```powershell
+docker rm -f open-webui
+
+docker run -d `
+  -p 3000:8080 `
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 `
+  -e HF_HUB_OFFLINE=1 `
+  -v open-webui:/app/backend/data `
+  --name open-webui `
+  --restart always `
+  freiheit-open-webui:local
+```
+
+## UI Customization
+
+The UI changes are implemented in code:
+
+- Branding change: `src/app.css` adds a Freiheit Media emerald accent system, including a branded app background, sidebar gradient, and branded sidebar title color.
+- Custom UI element: `src/lib/components/layout/InternalBrandBanner.svelte` adds a visible banner reading `Freiheit Media - Internal LLM` with a `Local Test` pill.
+- App placement: `src/routes/(app)/+layout.svelte` renders the banner in the authenticated app shell so it is visible during normal use.
+
+Suggested video walkthrough:
+
+1. Show Docker Desktop running and `docker ps`.
+2. Open [http://localhost:3000](http://localhost:3000).
+3. Point out the emerald sidebar branding and the `Freiheit Media - Internal LLM` banner.
+4. Open `src/app.css`, `src/lib/components/layout/InternalBrandBanner.svelte`, and `src/routes/(app)/+layout.svelte`.
+5. Briefly explain the Docker command used to start the app.
+
+## RAG Safety Mini-Task
+
+### System Prompt
+
+You are a customer-specific support assistant inside Open WebUI. You are connected to exactly one active customer Knowledge Base for this conversation.
+
+Answer using only information found in the active Knowledge Base. Do not use other customers' documents, general memory, prior conversations, assumptions, or outside knowledge. Treat the active Knowledge Base as the only trusted source.
+
+For every answer:
+
+- First decide whether the Knowledge Base contains complete, partial, or no relevant information.
+- If the answer is complete, answer directly and briefly cite the minimum useful source, for example: "Based on Onboarding Guide - 2024".
+- If the answer is partial, clearly say what is known, what is missing, and what the user should verify with a human owner.
+- If the answer is not present, say that the Knowledge Base does not contain the information. Do not guess.
+- If retrieved snippets conflict, state that the Knowledge Base contains conflicting information and identify the conflicting sources.
+- Do not invent policies, prices, contacts, dates, commitments, SLAs, legal terms, security controls, or technical steps.
+- Keep answers concise, operational, and grounded in the cited source names.
+
+### Example Customer Knowledge Base
+
+For these examples, assume the active Knowledge Base contains:
+
+- `Onboarding Guide - 2024`: new employees must complete security training within 7 days, set up MFA before accessing production tools, and contact IT through the helpdesk portal.
+- `Support SLA - Enterprise`: enterprise customers receive first response within 4 business hours for priority 2 incidents.
+- `Billing FAQ - 2024`: invoices are sent monthly to the billing contact on file.
+
+### Example 1: Complete Answer
+
+User question:
+
+```text
+How quickly do enterprise customers get a first response for a priority 2 incident?
+```
+
+Expected answer:
+
+```text
+Enterprise customers receive a first response within 4 business hours for priority 2 incidents. Based on Support SLA - Enterprise.
+```
+
+### Example 2: Partial Answer
+
+User question:
+
+```text
+How do new employees get production access, and who approves it?
+```
+
+Expected answer:
+
+```text
+The Knowledge Base says new employees must complete security training within 7 days and set up MFA before accessing production tools. It does not specify who approves production access. Please verify the approval owner with IT or the access management team. Based on Onboarding Guide - 2024.
+```
+
+### Example 3: No Information Available
+
+User question:
+
+```text
+What is the customer's refund policy for annual contracts?
+```
+
+Expected answer:
+
+```text
+The active Knowledge Base does not contain information about refund policies for annual contracts. I cannot answer this from the available documents.
+```
+
+### Why This Improves Reliability
+
+This prompt forces the model to classify evidence before answering. That reduces hallucination because the model must explicitly separate complete, partial, and missing knowledge instead of filling gaps with plausible-sounding text.
+
+It also prevents customer data mixing. Since the model is instructed to use only the active Knowledge Base, it should not blend another customer's policies, support terms, contacts, or onboarding process into the current answer.
+
+Typical failure modes this prevents:
+
+- inventing missing approval steps, contacts, SLAs, or billing rules
+- using general knowledge when the customer Knowledge Base is incomplete
+- mixing documents from different customers
+- presenting partial evidence as if it were complete
+- hiding source conflicts instead of escalating them
+
+Future improvements:
+
+- Require structured output with fields such as `answer_status`, `answer`, `missing_information`, and `sources`.
+- Add retrieval filters that enforce customer ID and Knowledge Base ID before the prompt runs.
+- Add automated evaluation examples for complete, partial, missing, and conflicting retrieval cases.
+- Show confidence only as evidence coverage, not as model certainty.
+
+---
+
 # Open WebUI 👋
 
 ![GitHub stars](https://img.shields.io/github/stars/open-webui/open-webui?style=social)
