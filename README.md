@@ -1,42 +1,28 @@
-# Freiheit Media Open WebUI Test Submission
+# Open WebUI test task
 
-This fork customizes Open WebUI for a local internal LLM evaluation. It includes a visible branding update, a small custom UI element, Docker-based setup instructions, and a conceptual RAG safety answer for customer-isolated knowledge bases.
+This is my fork of Open WebUI for the developer test task. I kept the changes small on purpose: one clear visual branding change, one visible UI element, and a short write-up for the RAG part of the task.
 
-## Submission Links
+## Links
 
-- GitHub fork: TODO - replace with your fork URL after pushing this branch.
-- Short video: TODO - add your screen recording link.
+- GitHub fork: [GitHub](https://github.com/Web-Master-1022/Open-Web-UI)
 
-## Local Docker Setup
+## Running it locally
 
-Start Docker Desktop first. On Windows, confirm Docker is ready with:
-
-```powershell
-docker version
-docker ps
-```
-
-Build this fork so the UI changes are included:
+I used Docker for the local run. From the project root:
 
 ```powershell
-docker build -t freiheit-open-webui:local .
-```
-
-Run the local image:
-
-```powershell
+docker build --build-arg USE_SLIM=true -t freiheit-open-webui:local .
 docker rm -f open-webui
-
-docker run -d `
-  -p 3000:8080 `
-  -e HF_HUB_OFFLINE=1 `
-  -v open-webui:/app/backend/data `
-  --name open-webui `
-  --restart always `
-  freiheit-open-webui:local
+docker run -d -p 3000:8080 -e HF_HUB_OFFLINE=1 -v open-webui:/app/backend/data --name open-webui --restart always freiheit-open-webui:local
 ```
 
-Open the app at [http://localhost:3000](http://localhost:3000).
+Then open:
+
+```text
+http://localhost:3000
+```
+
+I used `HF_HUB_OFFLINE=1` because the default image can spend a long time downloading Hugging Face files on first startup. For this task the important part is the local Open WebUI instance and the UI changes.
 
 Useful commands:
 
@@ -46,66 +32,61 @@ docker stop open-webui
 docker start open-webui
 ```
 
-If Ollama is running on the Windows host, use this variant:
+If Ollama runs on the Windows host, I would start it with this instead:
 
 ```powershell
 docker rm -f open-webui
-
-docker run -d `
-  -p 3000:8080 `
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 `
-  -e HF_HUB_OFFLINE=1 `
-  -v open-webui:/app/backend/data `
-  --name open-webui `
-  --restart always `
-  freiheit-open-webui:local
+docker run -d -p 3000:8080 -e OLLAMA_BASE_URL=http://host.docker.internal:11434 -e HF_HUB_OFFLINE=1 -v open-webui:/app/backend/data --name open-webui --restart always freiheit-open-webui:local
 ```
 
-## UI Customization
+## UI changes
 
-The UI changes are implemented in code:
+I changed the UI in three places:
 
-- Branding change: `src/app.css` adds a Freiheit Media emerald accent system, including a branded app background, sidebar gradient, and branded sidebar title color.
-- Custom UI element: `src/lib/components/layout/InternalBrandBanner.svelte` adds a visible banner reading `Freiheit Media - Internal LLM` with a `Local Test` pill.
-- App placement: `src/routes/(app)/+layout.svelte` renders the banner in the authenticated app shell so it is visible during normal use.
+- `src/app.css`: added a green/emerald accent to the app background and sidebar.
+- `src/lib/components/layout/InternalBrandBanner.svelte`: added a small banner with the text `Freiheit Media - Internal LLM`.
+- `src/routes/(app)/+layout.svelte`: mounted the banner inside the main authenticated app layout.
 
-Suggested video walkthrough:
+The goal was to make the customization obvious in a quick demo without changing core Open WebUI behavior.
 
-1. Show Docker Desktop running and `docker ps`.
-2. Open [http://localhost:3000](http://localhost:3000).
-3. Point out the emerald sidebar branding and the `Freiheit Media - Internal LLM` banner.
-4. Open `src/app.css`, `src/lib/components/layout/InternalBrandBanner.svelte`, and `src/routes/(app)/+layout.svelte`.
-5. Briefly explain the Docker command used to start the app.
+## Part B: RAG answer quality and customer safety
 
-## RAG Safety Mini-Task
+Assumption: each customer has a separate Knowledge Base, and the active model is connected to exactly one customer Knowledge Base at a time.
 
-### System Prompt
+### System prompt
 
-You are a customer-specific support assistant inside Open WebUI. You are connected to exactly one active customer Knowledge Base for this conversation.
+```text
+You are answering questions for one customer only.
 
-Answer using only information found in the active Knowledge Base. Do not use other customers' documents, general memory, prior conversations, assumptions, or outside knowledge. Treat the active Knowledge Base as the only trusted source.
+Use only the currently active Knowledge Base. Do not use information from other customers, previous chats, general knowledge, or guesses.
 
-For every answer:
+Before answering, decide whether the active Knowledge Base contains:
+1. enough information to answer,
+2. only partial information,
+3. no relevant information.
 
-- First decide whether the Knowledge Base contains complete, partial, or no relevant information.
-- If the answer is complete, answer directly and briefly cite the minimum useful source, for example: "Based on Onboarding Guide - 2024".
-- If the answer is partial, clearly say what is known, what is missing, and what the user should verify with a human owner.
-- If the answer is not present, say that the Knowledge Base does not contain the information. Do not guess.
-- If retrieved snippets conflict, state that the Knowledge Base contains conflicting information and identify the conflicting sources.
-- Do not invent policies, prices, contacts, dates, commitments, SLAs, legal terms, security controls, or technical steps.
-- Keep answers concise, operational, and grounded in the cited source names.
+If the information is complete, answer directly and cite the smallest useful source name, for example: "Based on Onboarding Guide - 2024".
 
-### Example Customer Knowledge Base
+If the information is partial, answer only the part that is supported. Then clearly say what is missing.
 
-For these examples, assume the active Knowledge Base contains:
+If the information is not present, say that the active Knowledge Base does not contain the answer. Do not fill the gap with assumptions.
 
-- `Onboarding Guide - 2024`: new employees must complete security training within 7 days, set up MFA before accessing production tools, and contact IT through the helpdesk portal.
-- `Support SLA - Enterprise`: enterprise customers receive first response within 4 business hours for priority 2 incidents.
+If documents conflict, say that the Knowledge Base contains conflicting information and name the conflicting documents.
+
+Do not invent policies, prices, contacts, dates, SLAs, legal terms, security controls, or technical steps.
+```
+
+### Example Knowledge Base
+
+For the examples below, I assume the active Knowledge Base contains these documents:
+
+- `Onboarding Guide - 2024`: new employees must complete security training within 7 days, set up MFA before production tool access, and contact IT through the helpdesk portal.
+- `Support SLA - Enterprise`: enterprise customers receive a first response within 4 business hours for priority 2 incidents.
 - `Billing FAQ - 2024`: invoices are sent monthly to the billing contact on file.
 
-### Example 1: Complete Answer
+### Example 1: complete answer
 
-User question:
+Question:
 
 ```text
 How quickly do enterprise customers get a first response for a priority 2 incident?
@@ -117,9 +98,9 @@ Expected answer:
 Enterprise customers receive a first response within 4 business hours for priority 2 incidents. Based on Support SLA - Enterprise.
 ```
 
-### Example 2: Partial Answer
+### Example 2: partial answer
 
-User question:
+Question:
 
 ```text
 How do new employees get production access, and who approves it?
@@ -128,12 +109,12 @@ How do new employees get production access, and who approves it?
 Expected answer:
 
 ```text
-The Knowledge Base says new employees must complete security training within 7 days and set up MFA before accessing production tools. It does not specify who approves production access. Please verify the approval owner with IT or the access management team. Based on Onboarding Guide - 2024.
+New employees must complete security training within 7 days and set up MFA before getting access to production tools. The Knowledge Base does not say who approves the access, so that part needs to be checked with IT or the access owner. Based on Onboarding Guide - 2024.
 ```
 
-### Example 3: No Information Available
+### Example 3: no answer in the Knowledge Base
 
-User question:
+Question:
 
 ```text
 What is the customer's refund policy for annual contracts?
@@ -142,266 +123,20 @@ What is the customer's refund policy for annual contracts?
 Expected answer:
 
 ```text
-The active Knowledge Base does not contain information about refund policies for annual contracts. I cannot answer this from the available documents.
+The active Knowledge Base does not contain the refund policy for annual contracts. I cannot answer that from the available documents.
 ```
 
-### Why This Improves Reliability
+### Why I would use this approach
 
-This prompt forces the model to classify evidence before answering. That reduces hallucination because the model must explicitly separate complete, partial, and missing knowledge instead of filling gaps with plausible-sounding text.
+The main risk in a customer-specific RAG setup is that the assistant sounds confident even when the retrieved context is incomplete. The prompt above makes the model handle missing information explicitly instead of guessing.
 
-It also prevents customer data mixing. Since the model is instructed to use only the active Knowledge Base, it should not blend another customer's policies, support terms, contacts, or onboarding process into the current answer.
+It also helps prevent customer data leakage. The model is told to use only the active Knowledge Base, so it should not mix policies, contacts, or terms from another customer.
 
-Typical failure modes this prevents:
+Typical failure modes this reduces:
 
-- inventing missing approval steps, contacts, SLAs, or billing rules
-- using general knowledge when the customer Knowledge Base is incomplete
-- mixing documents from different customers
-- presenting partial evidence as if it were complete
-- hiding source conflicts instead of escalating them
+- answering from general model knowledge instead of the customer's documents
+- mixing up customers
+- inventing missing SLAs, contacts, or approval steps
+- treating partial information as complete
 
-Future improvements:
-
-- Require structured output with fields such as `answer_status`, `answer`, `missing_information`, and `sources`.
-- Add retrieval filters that enforce customer ID and Knowledge Base ID before the prompt runs.
-- Add automated evaluation examples for complete, partial, missing, and conflicting retrieval cases.
-- Show confidence only as evidence coverage, not as model certainty.
-
----
-
-# Open WebUI 👋
-
-![GitHub stars](https://img.shields.io/github/stars/open-webui/open-webui?style=social)
-![GitHub forks](https://img.shields.io/github/forks/open-webui/open-webui?style=social)
-![GitHub watchers](https://img.shields.io/github/watchers/open-webui/open-webui?style=social)
-![GitHub repo size](https://img.shields.io/github/repo-size/open-webui/open-webui)
-![GitHub language count](https://img.shields.io/github/languages/count/open-webui/open-webui)
-![GitHub top language](https://img.shields.io/github/languages/top/open-webui/open-webui)
-![GitHub last commit](https://img.shields.io/github/last-commit/open-webui/open-webui?color=red)
-[![Discord](https://img.shields.io/badge/Discord-Open_WebUI-blue?logo=discord&logoColor=white)](https://discord.gg/5rJgQTnV4s)
-[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/tjbck)
-
-![Open WebUI Banner](./banner.png)
-
-**Open WebUI is an [extensible](https://docs.openwebui.com/features/extensibility/plugin), feature-rich, and user-friendly self-hosted AI platform designed to operate entirely offline.** It supports various LLM runners like **Ollama** and **OpenAI-compatible APIs**, with **built-in inference engine** for RAG, making it a **powerful AI deployment solution**.
-
-Passionate about open-source AI? [Join our team →](https://careers.openwebui.com/)
-
-![Open WebUI Demo](./demo.png)
-
-> [!TIP]  
-> **Looking for an [Enterprise Plan](https://docs.openwebui.com/enterprise)?** – **[Speak with Our Sales Team Today!](https://docs.openwebui.com/enterprise)**
->
-> Get **enhanced capabilities**, including **custom theming and branding**, **Service Level Agreement (SLA) support**, **Long-Term Support (LTS) versions**, and **more!**
-
-For more information, be sure to check out our [Open WebUI Documentation](https://docs.openwebui.com/).
-
-## Key Features of Open WebUI ⭐
-
-- 🚀 **Effortless Setup**: Install seamlessly using Docker or Kubernetes (kubectl, kustomize or helm) for a hassle-free experience with support for both `:ollama` and `:cuda` tagged images.
-
-- 🤝 **Ollama/OpenAI API Integration**: Effortlessly integrate OpenAI-compatible APIs for versatile conversations alongside Ollama models. Customize the OpenAI API URL to link with **LMStudio, GroqCloud, Mistral, OpenRouter, and more**.
-
-- 🛡️ **Granular Permissions and User Groups**: By allowing administrators to create detailed user roles and permissions, we ensure a secure user environment. This granularity not only enhances security but also allows for customized user experiences, fostering a sense of ownership and responsibility amongst users.
-
-- 📱 **Responsive Design**: Enjoy a seamless experience across Desktop PC, Laptop, and Mobile devices.
-
-- 📱 **Progressive Web App (PWA) for Mobile**: Enjoy a native app-like experience on your mobile device with our PWA, providing offline access on localhost and a seamless user interface.
-
-- ✒️🔢 **Full Markdown and LaTeX Support**: Elevate your LLM experience with comprehensive Markdown and LaTeX capabilities for enriched interaction.
-
-- 🎤📹 **Hands-Free Voice/Video Call**: Experience seamless communication with integrated hands-free voice and video call features using multiple Speech-to-Text providers (Local Whisper, OpenAI, Deepgram, Azure) and Text-to-Speech engines (Azure, ElevenLabs, OpenAI, Transformers, WebAPI), allowing for dynamic and interactive chat environments.
-
-- 🛠️ **Model Builder**: Easily create Ollama models via the Web UI. Create and add custom characters/agents, customize chat elements, and import models effortlessly through [Open WebUI Community](https://openwebui.com/) integration.
-
-- 🐍 **Native Python Function Calling Tool**: Enhance your LLMs with built-in code editor support in the tools workspace. Bring Your Own Function (BYOF) by simply adding your pure Python functions, enabling seamless integration with LLMs.
-
-- 💾 **Persistent Artifact Storage**: Built-in key-value storage API for artifacts, enabling features like journals, trackers, leaderboards, and collaborative tools with both personal and shared data scopes across sessions.
-
-- 📚 **Local RAG Integration**: Dive into the future of chat interactions with groundbreaking Retrieval Augmented Generation (RAG) support using your choice of 9 vector databases and multiple content extraction engines (Tika, Docling, Document Intelligence, Mistral OCR, PaddleOCR-vl, External loaders). Load documents directly into chat or add files to your document library, effortlessly accessing them using the `#` command before a query.
-
-- 🔍 **Web Search for RAG**: Perform web searches using 15+ providers including `SearXNG`, `Google PSE`, `Brave Search`, `Kagi`, `Mojeek`, `Tavily`, `Perplexity`, `serpstack`, `serper`, `Serply`, `DuckDuckGo`, `SearchApi`, `SerpApi`, `Bing`, `Jina`, `Exa`, `Sougou`, `Azure AI Search`, and `Ollama Cloud`, injecting results directly into your chat experience.
-
-- 🌐 **Web Browsing Capability**: Seamlessly integrate websites into your chat experience using the `#` command followed by a URL. This feature allows you to incorporate web content directly into your conversations, enhancing the richness and depth of your interactions.
-
-- 🎨 **Image Generation & Editing Integration**: Create and edit images using multiple engines including OpenAI's DALL-E, Gemini, ComfyUI (local), and AUTOMATIC1111 (local), with support for both generation and prompt-based editing workflows.
-
-- ⚙️ **Many Models Conversations**: Effortlessly engage with various models simultaneously, harnessing their unique strengths for optimal responses. Enhance your experience by leveraging a diverse set of models in parallel.
-
-- 🔐 **Role-Based Access Control (RBAC)**: Ensure secure access with restricted permissions; only authorized individuals can access your Ollama, and exclusive model creation/pulling rights are reserved for administrators.
-
-- 🗄️ **Flexible Database & Storage Options**: Choose from SQLite (with optional encryption), PostgreSQL, or configure cloud storage backends (S3, Google Cloud Storage, Azure Blob Storage) for scalable deployments.
-
-- 🔍 **Advanced Vector Database Support**: Select from 9 vector database options including ChromaDB, PGVector, Qdrant, Milvus, Elasticsearch, OpenSearch, Pinecone, S3Vector, and Oracle 23ai for optimal RAG performance.
-
-- 🔐 **Enterprise Authentication**: Full support for LDAP/Active Directory integration, SCIM 2.0 automated provisioning, and SSO via trusted headers alongside OAuth providers. Enterprise-grade user and group provisioning through SCIM 2.0 protocol, enabling seamless integration with identity providers like Okta, Azure AD, and Google Workspace for automated user lifecycle management.
-
-- ☁️ **Cloud-Native Integration**: Native support for Google Drive and OneDrive/SharePoint file picking, enabling seamless document import from enterprise cloud storage.
-
-- 📊 **Production Observability**: Built-in OpenTelemetry support for traces, metrics, and logs, enabling comprehensive monitoring with your existing observability stack.
-
-- ⚖️ **Horizontal Scalability**: Redis-backed session management and WebSocket support for multi-worker and multi-node deployments behind load balancers.
-
-- 🌐🌍 **Multilingual Support**: Experience Open WebUI in your preferred language with our internationalization (i18n) support. Join us in expanding our supported languages! We're actively seeking contributors!
-
-- 🧩 **Pipelines, Open WebUI Plugin Support**: Seamlessly integrate custom logic and Python libraries into Open WebUI using [Pipelines Plugin Framework](https://github.com/open-webui/pipelines). Launch your Pipelines instance, set the OpenAI URL to the Pipelines URL, and explore endless possibilities. [Examples](https://github.com/open-webui/pipelines/tree/main/examples) include **Function Calling**, User **Rate Limiting** to control access, **Usage Monitoring** with tools like Langfuse, **Live Translation with LibreTranslate** for multilingual support, **Toxic Message Filtering** and much more.
-
-- 🌟 **Continuous Updates**: We are committed to improving Open WebUI with regular updates, fixes, and new features.
-
-Want to learn more about Open WebUI's features? Check out our [Open WebUI documentation](https://docs.openwebui.com/features) for a comprehensive overview!
-
----
-
-We are incredibly grateful for the generous support of our sponsors. Their contributions help us to maintain and improve our project, ensuring we can continue to deliver quality work to our community. Thank you!
-
-## How to Install 🚀
-
-### Installation via Python pip 🐍
-
-Open WebUI can be installed using pip, the Python package installer. Before proceeding, ensure you're using **Python 3.11** to avoid compatibility issues.
-
-1. **Install Open WebUI**:
-   Open your terminal and run the following command to install Open WebUI:
-
-   ```bash
-   pip install open-webui
-   ```
-
-2. **Running Open WebUI**:
-   After installation, you can start Open WebUI by executing:
-
-   ```bash
-   open-webui serve
-   ```
-
-This will start the Open WebUI server, which you can access at [http://localhost:8080](http://localhost:8080)
-
-### Quick Start with Docker 🐳
-
-> [!NOTE]  
-> Please note that for certain Docker environments, additional configurations might be needed. If you encounter any connection issues, our detailed guide on [Open WebUI Documentation](https://docs.openwebui.com/) is ready to assist you.
-
-> [!WARNING]
-> When using Docker to install Open WebUI, make sure to include the `-v open-webui:/app/backend/data` in your Docker command. This step is crucial as it ensures your database is properly mounted and prevents any loss of data.
-
-> [!TIP]  
-> If you wish to utilize Open WebUI with Ollama included or CUDA acceleration, we recommend utilizing our official images tagged with either `:cuda` or `:ollama`. To enable CUDA, you must install the [Nvidia CUDA container toolkit](https://docs.nvidia.com/dgx/nvidia-container-runtime-upgrade/) on your Linux/WSL system.
-
-### Installation with Default Configuration
-
-- **If Ollama is on your computer**, use this command:
-
-  ```bash
-  docker run -d -p 3000:8080 --add-host=host.docker.internal:host-gateway -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:main
-  ```
-
-- **If Ollama is on a Different Server**, use this command:
-
-  To connect to Ollama on another server, change the `OLLAMA_BASE_URL` to the server's URL:
-
-  ```bash
-  docker run -d -p 3000:8080 -e OLLAMA_BASE_URL=https://example.com -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:main
-  ```
-
-- **To run Open WebUI with Nvidia GPU support**, use this command:
-
-  ```bash
-  docker run -d -p 3000:8080 --gpus all --add-host=host.docker.internal:host-gateway -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:cuda
-  ```
-
-### Installation for OpenAI API Usage Only
-
-- **If you're only using OpenAI API**, use this command:
-
-  ```bash
-  docker run -d -p 3000:8080 -e OPENAI_API_KEY=your_secret_key -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:main
-  ```
-
-### Installing Open WebUI with Bundled Ollama Support
-
-This installation method uses a single container image that bundles Open WebUI with Ollama, allowing for a streamlined setup via a single command. Choose the appropriate command based on your hardware setup:
-
-- **With GPU Support**:
-  Utilize GPU resources by running the following command:
-
-  ```bash
-  docker run -d -p 3000:8080 --gpus=all -v ollama:/root/.ollama -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:ollama
-  ```
-
-- **For CPU Only**:
-  If you're not using a GPU, use this command instead:
-
-  ```bash
-  docker run -d -p 3000:8080 -v ollama:/root/.ollama -v open-webui:/app/backend/data --name open-webui --restart always ghcr.io/open-webui/open-webui:ollama
-  ```
-
-Both commands facilitate a built-in, hassle-free installation of both Open WebUI and Ollama, ensuring that you can get everything up and running swiftly.
-
-After installation, you can access Open WebUI at [http://localhost:3000](http://localhost:3000). Enjoy! 😄
-
-### Other Installation Methods
-
-We offer various installation alternatives, including non-Docker native installation methods, Docker Compose, Kustomize, and Helm. Visit our [Open WebUI Documentation](https://docs.openwebui.com/getting-started/) or join our [Discord community](https://discord.gg/5rJgQTnV4s) for comprehensive guidance.
-
-### Troubleshooting
-
-Encountering connection issues? Our [Open WebUI Documentation](https://docs.openwebui.com/troubleshooting/) has got you covered. For further assistance and to join our vibrant community, visit the [Open WebUI Discord](https://discord.gg/5rJgQTnV4s).
-
-#### Open WebUI: Server Connection Error
-
-If you're experiencing connection issues, it’s often due to the WebUI docker container not being able to reach the Ollama server at 127.0.0.1:11434 (host.docker.internal:11434) inside the container . Use the `--network=host` flag in your docker command to resolve this. Note that the port changes from 3000 to 8080, resulting in the link: `http://localhost:8080`.
-
-**Example Docker Command**:
-
-```bash
-docker run -d --network=host -v open-webui:/app/backend/data -e OLLAMA_BASE_URL=http://127.0.0.1:11434 --name open-webui --restart always ghcr.io/open-webui/open-webui:main
-```
-
-### Keeping Your Docker Installation Up-to-Date
-
-Check our Updating Guide available in our [Open WebUI Documentation](https://docs.openwebui.com/getting-started/updating).
-
-### Using the Dev Branch 🌙
-
-> [!WARNING]
-> The `:dev` branch contains the latest unstable features and changes. Use it at your own risk as it may have bugs or incomplete features.
-
-If you want to try out the latest bleeding-edge features and are okay with occasional instability, you can use the `:dev` tag like this:
-
-```bash
-docker run -d -p 3000:8080 -v open-webui:/app/backend/data --name open-webui --add-host=host.docker.internal:host-gateway --restart always ghcr.io/open-webui/open-webui:dev
-```
-
-### Offline Mode
-
-If you are running Open WebUI in an offline environment, you can set the `HF_HUB_OFFLINE` environment variable to `1` to prevent attempts to download models from the internet.
-
-```bash
-export HF_HUB_OFFLINE=1
-```
-
-## What's Next? 🌟
-
-Discover upcoming features on our roadmap in the [Open WebUI Documentation](https://docs.openwebui.com/roadmap/).
-
-## License 📜
-
-This project contains code under multiple licenses. The current codebase includes components licensed under the Open WebUI License with an additional requirement to preserve the "Open WebUI" branding, as well as prior contributions under their respective original licenses. For a detailed record of license changes and the applicable terms for each section of the code, please refer to [LICENSE_HISTORY](./LICENSE_HISTORY). For complete and updated licensing details, please see the [LICENSE](./LICENSE) and [LICENSE_HISTORY](./LICENSE_HISTORY) files.
-
-## Support 💬
-
-If you have any questions, suggestions, or need assistance, please open an issue or join our
-[Open WebUI Discord community](https://discord.gg/5rJgQTnV4s) to connect with us! 🤝
-
-## Star History
-
-<a href="https://star-history.com/#open-webui/open-webui&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=open-webui/open-webui&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=open-webui/open-webui&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=open-webui/open-webui&type=Date" />
-  </picture>
-</a>
-
----
-
-Created by [Timothy Jaeryang Baek](https://github.com/tjbck) - Let's make Open WebUI even more amazing together! 💪
+Later I would improve this with structured output, for example `status`, `answer`, `missing_info`, and `sources`, plus retrieval filters that enforce the customer ID before the model receives any context.
